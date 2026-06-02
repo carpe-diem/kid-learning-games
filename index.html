@@ -539,7 +539,9 @@ function setQuestion() {
   document.getElementById('feedbackMsg').textContent = '';
   document.getElementById('feedbackMsg').className = 'feedback-msg';
   if (cfg.audioEnabled) setTimeout(speakQuestion, 300);
-  if (!micActive) startMic();
+  // restart listening for next question
+  if (micActive) setTimeout(listenOnce, 300);
+  else startMic();
 }
 
 function speakQuestion() {
@@ -570,7 +572,7 @@ function submitAnswer() {
   inp.classList.add(ok?'correct':'wrong');
   showFeedback(ok, currentQ.answer);
   setTimeout(()=>inp.classList.remove('correct','wrong'),500);
-  setTimeout(()=>{ if(gameRunning) setQuestion(); }, ok?500:900);
+  setTimeout(()=>{ if(gameRunning) setQuestion(); }, ok?150:600);
 }
 
 function showFeedback(ok, ans) {
@@ -694,44 +696,55 @@ function setVoiceStatus(msg,color){
 function startMic(){
   if(!SR){setVoiceStatus('❌ Voz no soportada. Usá Chrome.','red');return;}
   if(location.protocol==='file:'){setVoiceStatus('⚠️ Necesitás servidor web para usar el micrófono','orange');return;}
+  if(micActive) return;
+  micActive=true;
+  document.getElementById('micBtn').classList.add('listening');
+  document.getElementById('micBtn').textContent='⏹';
+  setVoiceStatus('🎤 Escuchando...');
+  listenOnce();
+}
+
+function listenOnce(){
+  if(!micActive||!gameRunning) return;
   try{
     recognition=new SR();
     recognition.lang='es-ES';
-    recognition.continuous=true;
-    recognition.interimResults=true;
-    recognition.maxAlternatives=5;
-    recognition.onstart=()=>{
-      micActive=true;
-      document.getElementById('micBtn').classList.add('listening');
-      document.getElementById('micBtn').textContent='⏹';
-      setVoiceStatus('Escuchando... decí un número');
-    };
+    recognition.continuous=false;
+    recognition.interimResults=false;
+    recognition.maxAlternatives=3;
     recognition.onresult=(e)=>{
       let bestNum=null;
-      for(let i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal){
-          for(let j=0;j<e.results[i].length;j++){
-            const t=e.results[i][j].transcript.trim();
-            setVoiceStatus('Escuché: "'+t+'"');
-            const n=extractNumber(t);
-            if(n!==null){bestNum=n;break;}
-          }
-          if(bestNum!==null) break;
-        }
+      for(let j=0;j<e.results[0].length;j++){
+        const t=e.results[0][j].transcript.trim();
+        setVoiceStatus('Escuché: "'+t+'"');
+        const n=extractNumber(t);
+        if(n!==null){bestNum=n;break;}
       }
       if(bestNum!==null){
         document.getElementById('answerInput').value=bestNum;
-        stopMic(); submitAnswer();
+        submitAnswer();
+      } else {
+        setVoiceStatus('🎤 No entendí, intentá de nuevo...');
+        setTimeout(()=>{ if(micActive&&gameRunning) listenOnce(); },400);
       }
     };
     recognition.onerror=(e)=>{
-      const msgs={'not-allowed':'❌ Permiso de micrófono denegado.','no-speech':'🔇 No se escuchó nada.','network':'📡 Necesitás internet para el reconocimiento de voz.','audio-capture':'🎙️ No se encontró micrófono.'};
+      if(e.error==='no-speech'){
+        setTimeout(()=>{ if(micActive&&gameRunning) listenOnce(); },200);
+        return;
+      }
+      const msgs={'not-allowed':'❌ Permiso denegado. Tocá el 🎤 para reintentar.','network':'📡 Necesitás internet para reconocimiento de voz.','audio-capture':'🎙️ No se encontró micrófono.'};
       setVoiceStatus(msgs[e.error]||'Error: '+e.error,'rgba(255,50,50,.4)');
-      setTimeout(()=>stopMic(),3000);
+      micActive=false;
+      document.getElementById('micBtn').classList.remove('listening');
+      document.getElementById('micBtn').textContent='🎤';
     };
-    recognition.onend=()=>{ if(micActive){try{recognition.start();}catch(e){stopMic();}} };
+    recognition.onend=()=>{};
     recognition.start();
-  }catch(err){setVoiceStatus('Error: '+err.message,'red');}
+  }catch(err){
+    setVoiceStatus('Error: '+err.message,'red');
+    micActive=false;
+  }
 }
 function stopMic(){
   if(recognition){recognition.onend=null;try{recognition.stop();}catch(e){}recognition=null;}
