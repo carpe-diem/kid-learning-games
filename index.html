@@ -514,7 +514,6 @@ function startGameForPlayer() {
   show('screenPlay');
   setQuestion();
   startTimer();
-  startMic();
 }
 
 function getRandomTable() {
@@ -539,9 +538,9 @@ function setQuestion() {
   document.getElementById('feedbackMsg').textContent = '';
   document.getElementById('feedbackMsg').className = 'feedback-msg';
   if (cfg.audioEnabled) setTimeout(speakQuestion, 300);
-  // restart listening for next question
-  if (micActive) setTimeout(listenOnce, 300);
-  else startMic();
+  // start mic fresh for each question (like a manual press)
+  stopMic();
+  setTimeout(startMic, 200);
 }
 
 function speakQuestion() {
