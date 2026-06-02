@@ -538,9 +538,6 @@ function setQuestion() {
   document.getElementById('feedbackMsg').textContent = '';
   document.getElementById('feedbackMsg').className = 'feedback-msg';
   if (cfg.audioEnabled) setTimeout(speakQuestion, 300);
-  // start mic fresh for each question (like a manual press)
-  stopMic();
-  setTimeout(startMic, 200);
 }
 
 function speakQuestion() {
@@ -695,55 +692,43 @@ function setVoiceStatus(msg,color){
 function startMic(){
   if(!SR){setVoiceStatus('❌ Voz no soportada. Usá Chrome.','red');return;}
   if(location.protocol==='file:'){setVoiceStatus('⚠️ Necesitás servidor web para usar el micrófono','orange');return;}
-  if(micActive) return;
-  micActive=true;
-  document.getElementById('micBtn').classList.add('listening');
-  document.getElementById('micBtn').textContent='⏹';
-  setVoiceStatus('🎤 Escuchando...');
-  listenOnce();
-}
-
-function listenOnce(){
-  if(!micActive||!gameRunning) return;
   try{
     recognition=new SR();
     recognition.lang='es-ES';
-    recognition.continuous=false;
+    recognition.continuous=true;
     recognition.interimResults=false;
     recognition.maxAlternatives=3;
+    recognition.onstart=()=>{
+      micActive=true;
+      document.getElementById('micBtn').classList.add('listening');
+      document.getElementById('micBtn').textContent='⏹';
+      setVoiceStatus('🎤 Escuchando...');
+    };
     recognition.onresult=(e)=>{
-      let bestNum=null;
-      for(let j=0;j<e.results[0].length;j++){
-        const t=e.results[0][j].transcript.trim();
-        setVoiceStatus('Escuché: "'+t+'"');
-        const n=extractNumber(t);
-        if(n!==null){bestNum=n;break;}
-      }
-      if(bestNum!==null){
-        document.getElementById('answerInput').value=bestNum;
-        submitAnswer();
-      } else {
-        setVoiceStatus('🎤 No entendí, intentá de nuevo...');
-        setTimeout(()=>{ if(micActive&&gameRunning) listenOnce(); },400);
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal){
+          for(let j=0;j<e.results[i].length;j++){
+            const t=e.results[i][j].transcript.trim();
+            setVoiceStatus('Escuché: "'+t+'"');
+            const n=extractNumber(t);
+            if(n!==null){
+              document.getElementById('answerInput').value=n;
+              stopMic();
+              submitAnswer();
+              return;
+            }
+          }
+        }
       }
     };
     recognition.onerror=(e)=>{
-      if(e.error==='no-speech'){
-        setTimeout(()=>{ if(micActive&&gameRunning) listenOnce(); },200);
-        return;
-      }
-      const msgs={'not-allowed':'❌ Permiso denegado. Tocá el 🎤 para reintentar.','network':'📡 Necesitás internet para reconocimiento de voz.','audio-capture':'🎙️ No se encontró micrófono.'};
-      setVoiceStatus(msgs[e.error]||'Error: '+e.error,'rgba(255,50,50,.4)');
-      micActive=false;
-      document.getElementById('micBtn').classList.remove('listening');
-      document.getElementById('micBtn').textContent='🎤';
+      const msgs={'not-allowed':'❌ Permiso denegado.','no-speech':'','network':'📡 Necesitás internet.','audio-capture':'🎙️ No se encontró micrófono.'};
+      if(e.error!=='no-speech') setVoiceStatus(msgs[e.error]||'Error: '+e.error,'rgba(255,50,50,.4)');
+      if(e.error==='not-allowed'||e.error==='audio-capture') stopMic();
     };
-    recognition.onend=()=>{};
+    recognition.onend=()=>{ if(micActive){try{recognition.start();}catch(e){stopMic();}} };
     recognition.start();
-  }catch(err){
-    setVoiceStatus('Error: '+err.message,'red');
-    micActive=false;
-  }
+  }catch(err){setVoiceStatus('Error: '+err.message,'red');}
 }
 function stopMic(){
   if(recognition){recognition.onend=null;try{recognition.stop();}catch(e){}recognition=null;}
