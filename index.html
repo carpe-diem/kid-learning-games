@@ -281,6 +281,45 @@ body::before {
 .lb-score { font-family: 'Fredoka One', cursive; color: var(--accent3); font-size: .95rem; }
 .lb-grade { font-size: .78rem; color: var(--muted); margin-left: 4px; }
 
+/* REPASO */
+.btn-repaso {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(124,58,237,.3);
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  border: none; border-radius: 50px;
+  cursor: pointer; transition: transform .12s, box-shadow .12s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-repaso:hover { box-shadow: 0 6px 28px rgba(124,58,237,.5); transform: translateY(-2px); }
+.btn-repaso:active { transform: scale(.96); }
+.repaso-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.repaso-table tr { border-bottom: 1px solid rgba(255,255,255,.06); }
+.repaso-table tr:last-child { border-bottom: none; }
+.repaso-table td {
+  padding: 9px 8px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.15rem;
+  text-align: center;
+}
+.repaso-table .td-op { color: var(--muted); font-size: .95rem; font-family: 'Nunito', sans-serif; font-weight: 700; }
+.repaso-table .td-q { color: #fff; text-align: left; padding-left: 4px; }
+.repaso-table .td-eq { color: var(--muted); }
+.repaso-table .td-ans { color: var(--accent); font-size: 1.4rem; text-align: right; }
+.repaso-table tr:hover td { background: rgba(255,255,255,.04); }
+.repaso-header {
+  text-align: center;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.5rem;
+  color: var(--accent3);
+  margin-bottom: 14px;
+  letter-spacing: 1px;
+}
+
 /* CONFETTI */
 .confetti-piece { position: fixed; border-radius: 2px; animation: confettiFall linear forwards; z-index: 999; pointer-events: none; }
 @keyframes confettiFall { 0%{transform:translateY(-20px) rotate(0deg);opacity:1} 100%{transform:translateY(110vh) rotate(720deg);opacity:0} }
@@ -328,9 +367,14 @@ body::before {
       </div>
     </div>
 
-    <button class="btn btn-primary" style="width:100%;font-size:1.3rem;padding:16px;" onclick="goToName()">
-      ¡Listo, a jugar! 🚀
-    </button>
+    <div class="btn-row">
+      <button class="btn btn-primary" style="flex:1;font-size:1.3rem;padding:16px;" onclick="goToName()">
+        ¡Listo, a jugar! 🚀
+      </button>
+      <button class="btn btn-repaso" style="padding:16px 20px;" onclick="goToRepaso()" title="Repasar una tabla">
+        📖 Repasar
+      </button>
+    </div>
 
     <!-- LEADERBOARD -->
     <div class="card" id="leaderboardCard">
@@ -405,6 +449,25 @@ body::before {
     </div>
   </div>
 
+  <!-- ══════════════ SCREEN: REPASO ══════════════ -->
+  <div class="screen hidden" id="screenRepaso">
+    <div class="card">
+      <div class="card-title">📖 Repasar tabla</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div class="config-label">¿Qué tabla querés repasar?</div>
+        <div class="stepper">
+          <button class="step-btn" onclick="adjustRepaso(-1)">−</button>
+          <div class="step-val" id="repasoTableVal">5</div>
+          <button class="step-btn" onclick="adjustRepaso(1)">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="repasoCard">
+      <div id="repasoContent"></div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="show('screenConfig')">← Volver al menú</button>
+  </div>
+
 </div><!-- /app -->
 
 <script>
@@ -421,7 +484,7 @@ body::before {
 
 // ══════════ STATE ══════════
 const cfg = { time:30, autoAdvance:true, audioEnabled:true };
-const selectedTables = new Set([1,2,3,4,5,6,7,8,9,10]); // default all checked
+const selectedTables = new Set([1,2,3,4,5,6,7,8,9,10]);
 
 let currentPlayer = '';
 let timerInterval = null;
@@ -437,7 +500,7 @@ let gameRunning = false;
 function buildTablesGrid() {
   const grid = document.getElementById('tablesGrid');
   grid.innerHTML = '';
-  for (let t = 1; t <= 12; t++) {
+  for (let t = 1; t <= 10; t++) {
     const wrap = document.createElement('div');
     wrap.className = 'table-check';
     const id = 'tbl' + t;
@@ -750,6 +813,40 @@ function extractNumber(text){
   if(m){const n=parseInt(m[1]);if(!isNaN(n)&&n>=0&&n<=200) return n;}
   for(const t of lower.split(' ')){if(words[t]!==undefined) return words[t];}
   return null;
+}
+
+// ══════════ REPASO ══════════
+let repasoTable = 5;
+
+function goToRepaso() {
+  renderRepaso();
+  show('screenRepaso');
+}
+
+function adjustRepaso(delta) {
+  repasoTable = Math.min(10, Math.max(1, repasoTable + delta));
+  document.getElementById('repasoTableVal').textContent = repasoTable;
+  renderRepaso();
+}
+
+function renderRepaso() {
+  document.getElementById('repasoTableVal').textContent = repasoTable;
+  const rows = [];
+  for (let i = 1; i <= 10; i++) {
+    const result = repasoTable * i;
+    // color accent cycles for visual variety
+    const colors = ['#f7c948','#ff6b9d','#6be5ff','#7fff6b','#ff9f43','#a78bfa','#f7c948','#ff6b9d','#6be5ff','#7fff6b'];
+    rows.push(`
+      <tr>
+        <td class="td-q">${repasoTable} × ${i}</td>
+        <td class="td-eq">=</td>
+        <td class="td-ans" style="color:${colors[i-1]}">${result}</td>
+      </tr>`);
+  }
+  document.getElementById('repasoContent').innerHTML = `
+    <div class="repaso-header">Tabla del ${repasoTable}</div>
+    <table class="repaso-table">${rows.join('')}</table>
+  `;
 }
 
 // ══════════ INIT ══════════
