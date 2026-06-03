@@ -549,7 +549,12 @@ function speakQuestion() {
 }
 
 function handleKey(e) { if(e.key==='Enter'){e.preventDefault();submitAnswer();} }
-function onInput() { if(cfg.autoAdvance) checkInput(); }
+let inputTimer = null;
+function onInput() {
+  if(!cfg.autoAdvance) return;
+  clearTimeout(inputTimer);
+  inputTimer = setTimeout(checkInput, 600); // espera que termines de escribir
+}
 function checkInput() {
   const val=parseInt(document.getElementById('answerInput').value);
   if(!isNaN(val) && String(val)===document.getElementById('answerInput').value) submitAnswer();
